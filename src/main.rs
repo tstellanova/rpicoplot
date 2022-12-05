@@ -11,6 +11,8 @@ use embedded_hal::digital::v2::OutputPin;
 use panic_probe as _;
 use rp2040_hal as p_hal;
 use fugit::RateExtU32;
+use embedded_hal::adc::OneShot;
+use rand_core::RngCore;
 
 use ssd1351::{
     self,
@@ -71,27 +73,30 @@ fn main() -> ! {
     let mut led_pin = pins.led.into_push_pull_output();
 
     // A "heartbeat" shaped polyline
-    let points: [Point; 10] = [
-	Point::new(10, 64),
-	Point::new(50, 64),
-	Point::new(60, 44),
+    let points: [Point; 13] = [
+	Point::new(5, 32),
+	Point::new(25, 64),
+	Point::new(30, 44),
+	Point::new(35, 64),
+	Point::new(40, 64),
+	Point::new(45, 74),
+	Point::new(50, 10),
+	Point::new(55, 84),
+	Point::new(60, 64),
+        Point::new(65, 0),
 	Point::new(70, 64),
-	Point::new(80, 64),
-	Point::new(90, 74),
-	Point::new(100, 10),
-	Point::new(110, 84),
-	Point::new(120, 64),
-	Point::new(300, 64),
+	Point::new(75, 128),
+	Point::new(128, 64),
     ];
 
-    let line_style = PrimitiveStyle::with_stroke(Rgb565::GREEN, 5);
+    let line_style = PrimitiveStyle::with_stroke(Rgb565::GREEN, 3);
 
     let _spi0_sck_pin = pins.gpio6.into_mode::<p_hal::gpio::FunctionSpi>();
     let _spi0_do_pin = pins.gpio7.into_mode::<p_hal::gpio::FunctionSpi>();
     //let mut spi0_di_pin  = pins.gpio4.into_mode::<p_hal::gpio::FunctionSpi>();
 
     let dc_pin  = pins.gpio8.into_push_pull_output();
-    //let mut cs_pin = pins.gpio9.into_push_pull_output();
+    let _cs_pin = pins.gpio9.into_push_pull_output();
     let spi0 = p_hal::Spi::<_, _, 8>::new(pac.SPI0);
 
     // Exchange the uninitialised SPI driver for an initialised one
@@ -104,23 +109,39 @@ fn main() -> ! {
 
 
     let spii = SpiInterface::new(spi0, dc_pin );
-    let mut display_base = ssd1351::display::Display::new(spii, DisplaySize::Display128x128, DisplayRotation::Rotate0);
+    let mut display_base = ssd1351::display::Display::new(
+        spii, DisplaySize::Display128x128, DisplayRotation::Rotate0);
     let _ = display_base.init();
-  
     let mut display = GraphicsMode::new(display_base);
 
     Polyline::new(&points)
       .into_styled(line_style)
       .draw(&mut display).unwrap();
 
+
+    let mut adc = p_hal::Adc::new(pac.ADC, &mut pac.RESETS);
+    let mut temp_sensor = adc.enable_temp_sensor();
+
+    let mut raw_rng = p_hal::rosc::RingOscillator::new(pac.ROSC).initialize();
+
     loop {
-        info!("on!");
+        //info!("on!");
         led_pin.set_high().unwrap();
-        delay.delay_ms(500);
-        info!("off!");
+        let traw:u16 = adc.read(&mut temp_sensor).unwrap();
+        let scaled_high = (128*traw)/4095;
+	info!("scaled Y: {}", scaled_high);
+	let tvolt:f32 = (traw as f32) * (3.30f32/4095f32);
+	info!("traw: {} tvolt: {}", traw, tvolt);
+        // T = 27 - (ADC_voltage - 0.706)/0.001721
+	let temp_c = 27.0f32 - ((tvolt - 0.706)/0.001721);
+        info!("temp_c: {}", temp_c);
+        let rand_val = raw_rng.next_u32();
+        let scaled_high = (rand_val % 128);
+        info!("rand_val: {} scaled Y: {}", rand_val, scaled_high);
+        //delay.delay_ms(500);
+        //info!("off!");
         led_pin.set_low().unwrap();
         delay.delay_ms(500);
     }
 }
 
-// End of file
