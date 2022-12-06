@@ -13,6 +13,9 @@ use rp2040_hal as p_hal;
 use fugit::RateExtU32;
 use embedded_hal::adc::OneShot;
 use rand_core::RngCore;
+use embedded_graphics_sparklines::*;
+use embedded_graphics::primitives::Rectangle;
+use embedded_graphics::primitives::Line;
 
 use ssd1351::{
     self,
@@ -124,6 +127,21 @@ fn main() -> ! {
 
     let mut raw_rng = p_hal::rosc::RingOscillator::new(pac.ROSC).initialize();
 
+	let bbox = Rectangle::new(Point::new(4, 4), Size::new(120, 120));
+	let draw_fn = |lastp, p| Line::new(lastp, p);
+
+	// create sparkline object
+	let mut sparkline = Sparkline::new(
+	bbox, // position and size of the sparkline
+	32,   // max samples to store in memory (and display on graph)
+        Rgb565::GREEN,
+	//BinaryColor::On,
+	1, // stroke size
+	draw_fn,
+	);
+
+    display.clear();
+
     loop {
         //info!("on!");
         led_pin.set_high().unwrap();
@@ -138,6 +156,9 @@ fn main() -> ! {
         let rand_val = raw_rng.next_u32();
         let scaled_high = (rand_val % 128);
         info!("rand_val: {} scaled Y: {}", rand_val, scaled_high);
+        sparkline.add(rand_val as i32);
+        let _ = sparkline.draw(&mut display);
+
         //delay.delay_ms(500);
         //info!("off!");
         led_pin.set_low().unwrap();
