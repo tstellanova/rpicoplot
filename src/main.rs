@@ -46,6 +46,10 @@ use bsp::hal::{
     watchdog::Watchdog,
 };
 
+
+const DISPLAY_BUF_SIZE: usize = 32768;
+static mut FAST_IMG0: [u8; DISPLAY_BUF_SIZE] = [0u8; DISPLAY_BUF_SIZE];
+
 #[entry]
 fn main() -> ! {
     info!("Program start");
@@ -99,7 +103,11 @@ fn main() -> ! {
     let mut display_base = ssd1351::display::Display::new(
         spii, DisplaySize::Display128x128, DisplayRotation::Rotate0);
     let _ = display_base.init();
-    let mut display = GraphicsMode::new(display_base);
+
+
+    let mut display = unsafe {
+	GraphicsMode::new(display_base, &mut FAST_IMG0)
+    };
 
     let mut adc = p_hal::Adc::new(pac.ADC, &mut pac.RESETS);
     let mut temp_sensor = adc.enable_temp_sensor();
@@ -121,7 +129,6 @@ fn main() -> ! {
       draw_fn,
     );
 
-    display.clear();
 
     let border_stroke = PrimitiveStyleBuilder::new()
 	.stroke_color(Rgb565::BLUE)
@@ -133,7 +140,7 @@ fn main() -> ! {
         //info!("on!");
         led_pin.set_high().unwrap();
 
-	display.clear();
+	display.clear(false);
 	let _ = display.bounding_box().into_styled(border_stroke).draw(&mut display);
 	
 	let traw:u16 = adc.read(&mut temp_sensor).unwrap();
@@ -142,21 +149,22 @@ fn main() -> ! {
         // T = 27 - (ADC_voltage - 0.706)/0.001721
 	let temp_c = 27.0f32 - ((tvolt - 0.706)/0.001721);
         info!("temp_c: {}", temp_c);
-        let scaled_val= ((temp_c * 100f32) as i32);
+        let scaled_val= (temp_c * 100f32) as i32;
 
+        
+        let _rand_val = raw_rng.next_u32();
         /*
-        let rand_val = raw_rng.next_u32();
         let scaled_val= (rand_val/2) as i32; 
         info!("rand_val: {} scaled: {}", rand_val, scaled_val);
         */
 
         sparkline.add(scaled_val);
         let _ = sparkline.draw(&mut display);
-
+        display.flush();
         //delay.delay_ms(500);
         //info!("off!");
         led_pin.set_low().unwrap();
-        delay.delay_ms(300);
+        //delay.delay_ms(300);
     }
 
 /*

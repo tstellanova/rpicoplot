@@ -14,7 +14,7 @@ rand_core = {version = "0.6.4", default-features = false }
 
 fugit = "0.3.6"
 
-ssd1351 = "0.4.2"
+ssd1351 = {version="0.4.2", features = ["buffered"] }
 embedded-graphics = "0.7.1"
 embedded-graphics-sparklines = {version="0.2", path = "../espark" }
 
