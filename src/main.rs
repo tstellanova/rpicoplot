@@ -1,6 +1,3 @@
-//! Blinks the LED on a Pico board
-//!
-//! This will blink an LED attached to GP25, which is the pin the Pico uses for the on-board LED.
 #![no_std]
 #![no_main]
 
@@ -14,8 +11,6 @@ use fugit::RateExtU32;
 use embedded_hal::adc::OneShot;
 use rand_core::RngCore;
 use embedded_graphics_sparklines::*;
-use embedded_graphics::primitives::Rectangle;
-use embedded_graphics::primitives::Line;
 
 use ssd1351::{
     self,
@@ -29,6 +24,15 @@ use ssd1351::{
 use embedded_graphics::{
     pixelcolor::Rgb565, prelude::*, primitives::{Polyline, PrimitiveStyle},
 };
+
+use embedded_graphics::{
+    mono_font::{ascii::FONT_5X7, ascii::FONT_6X10, MonoTextStyle},
+    pixelcolor::BinaryColor,
+    prelude::*,
+    primitives::{Circle, Line, PrimitiveStyleBuilder, Rectangle, StrokeAlignment},
+    text::{Alignment, Text},
+};
+
 
 // Provide an alias for our BSP so we can switch targets quickly.
 // Uncomment the BSP you included in Cargo.toml, the rest of the code does not need to change.
@@ -75,25 +79,6 @@ fn main() -> ! {
 
     let mut led_pin = pins.led.into_push_pull_output();
 
-    // A "heartbeat" shaped polyline
-    let points: [Point; 13] = [
-	Point::new(5, 32),
-	Point::new(25, 64),
-	Point::new(30, 44),
-	Point::new(35, 64),
-	Point::new(40, 64),
-	Point::new(45, 74),
-	Point::new(50, 10),
-	Point::new(55, 84),
-	Point::new(60, 64),
-        Point::new(65, 0),
-	Point::new(70, 64),
-	Point::new(75, 128),
-	Point::new(128, 64),
-    ];
-
-    let line_style = PrimitiveStyle::with_stroke(Rgb565::GREEN, 3);
-
     let _spi0_sck_pin = pins.gpio6.into_mode::<p_hal::gpio::FunctionSpi>();
     let _spi0_do_pin = pins.gpio7.into_mode::<p_hal::gpio::FunctionSpi>();
     //let mut spi0_di_pin  = pins.gpio4.into_mode::<p_hal::gpio::FunctionSpi>();
@@ -110,61 +95,75 @@ fn main() -> ! {
         &embedded_hal::spi::MODE_0,
     );
 
-
     let spii = SpiInterface::new(spi0, dc_pin );
     let mut display_base = ssd1351::display::Display::new(
         spii, DisplaySize::Display128x128, DisplayRotation::Rotate0);
     let _ = display_base.init();
     let mut display = GraphicsMode::new(display_base);
 
-    Polyline::new(&points)
-      .into_styled(line_style)
-      .draw(&mut display).unwrap();
-
-
     let mut adc = p_hal::Adc::new(pac.ADC, &mut pac.RESETS);
     let mut temp_sensor = adc.enable_temp_sensor();
 
     let mut raw_rng = p_hal::rosc::RingOscillator::new(pac.ROSC).initialize();
 
-	let bbox = Rectangle::new(Point::new(4, 4), Size::new(120, 120));
-	let draw_fn = |lastp, p| Line::new(lastp, p);
+    let bbox = Rectangle::new(Point::new(4, 4), Size::new(124, 124));
+    let draw_fn = |lastp, p| Line::new(lastp, p);
 
-     const NUM_BUF_SAMPLES:usize = 120;
+    const NUM_BUF_SAMPLES:usize = 64;
+    const NUM_DRAW_SAMPLES:usize = 64;
 
-  	// create sparkline object
-	let mut sparkline = Sparkline::<_,_,_,NUM_BUF_SAMPLES>::new(
-	bbox, // position and size of the sparkline
-	32,   // max samples to store in memory (and display on graph)
-        Rgb565::GREEN,
-	//BinaryColor::On,
-	1, // stroke size
-	draw_fn,
-	);
+    // create sparkline object
+    let mut sparkline = Sparkline::<_,_,_,NUM_BUF_SAMPLES>::new(
+      bbox, // position and size of the sparkline
+      NUM_DRAW_SAMPLES,   //  max samples to display on graph 
+      Rgb565::GREEN,
+      1, // stroke size
+      draw_fn,
+    );
 
     display.clear();
+
+    let border_stroke = PrimitiveStyleBuilder::new()
+	.stroke_color(Rgb565::BLUE)
+	.stroke_width(3)
+	.stroke_alignment(StrokeAlignment::Inside)
+	.build();
 
     loop {
         //info!("on!");
         led_pin.set_high().unwrap();
-        let traw:u16 = adc.read(&mut temp_sensor).unwrap();
-        let scaled_high = (128*traw)/4095;
-	info!("scaled Y: {}", scaled_high);
+
+	display.clear();
+	let _ = display.bounding_box().into_styled(border_stroke).draw(&mut display);
+	
+	let traw:u16 = adc.read(&mut temp_sensor).unwrap();
 	let tvolt:f32 = (traw as f32) * (3.30f32/4095f32);
-	info!("traw: {} tvolt: {}", traw, tvolt);
+	//info!("traw: {} tvolt: {}", traw, tvolt);
         // T = 27 - (ADC_voltage - 0.706)/0.001721
 	let temp_c = 27.0f32 - ((tvolt - 0.706)/0.001721);
         info!("temp_c: {}", temp_c);
+        let scaled_val= ((temp_c * 100f32) as i32);
+
+        /*
         let rand_val = raw_rng.next_u32();
-        let scaled_high = (rand_val % 128);
-        info!("rand_val: {} scaled Y: {}", rand_val, scaled_high);
-        sparkline.add(rand_val as i32);
+        let scaled_val= (rand_val/2) as i32; 
+        info!("rand_val: {} scaled: {}", rand_val, scaled_val);
+        */
+
+        sparkline.add(scaled_val);
         let _ = sparkline.draw(&mut display);
 
         //delay.delay_ms(500);
         //info!("off!");
         led_pin.set_low().unwrap();
-        delay.delay_ms(500);
+        delay.delay_ms(300);
     }
+
+/*
+    delay.delay_ms(3000);
+    loop {
+        cortex_m::asm::bkpt();
+    }
+*/
 }
 
