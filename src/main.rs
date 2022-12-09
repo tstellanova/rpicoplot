@@ -130,8 +130,10 @@ fn main() -> ! {
 	let bbox = Rectangle::new(Point::new(4, 4), Size::new(120, 120));
 	let draw_fn = |lastp, p| Line::new(lastp, p);
 
-	// create sparkline object
-	let mut sparkline = Sparkline::new(
+     const NUM_BUF_SAMPLES:usize = 120;
+
+  	// create sparkline object
+	let mut sparkline = Sparkline::<_,_,_,NUM_BUF_SAMPLES>::new(
 	bbox, // position and size of the sparkline
 	32,   // max samples to store in memory (and display on graph)
         Rgb565::GREEN,
