@@ -8,7 +8,9 @@ use embedded_hal::digital::v2::OutputPin;
 use panic_probe as _;
 use rp2040_hal as p_hal;
 use fugit::RateExtU32;
-use micromath::F32Ext;
+//use micromath::F32Ext;
+use embedded_hal::digital::v2::InputPin;
+
 use embedded_hal::adc::OneShot;
 use rand_core::RngCore;
 use emplot::*;
@@ -126,8 +128,11 @@ fn main() -> ! {
     let mut adc = p_hal::Adc::new(pac.ADC, &mut pac.RESETS);
     // analog input read from GPIO26 / A0;
     let mut adc_pin_0 = pins.gpio26.into_floating_input();
+    let mut adc_pin_1 = pins.gpio27.into_floating_input();
+    let mut gpio28_in = pins.gpio28.into_floating_input();
+    //let mut adc_pin_2 = pins.gpio28.into_floating_input();
     let mut temp_sensor = adc.enable_temp_sensor();
-    let mut raw_rng = p_hal::rosc::RingOscillator::new(pac.ROSC).initialize();
+    let mut _raw_rng = p_hal::rosc::RingOscillator::new(pac.ROSC).initialize();
 
     let mut num_buffer = [0u8; 20];
     let mut text_buf =  ArrayString::<U40>::new();
@@ -142,32 +147,32 @@ fn main() -> ! {
     let bbox00 = Rectangle::new(Point::new(0, 0), Size::new(SUBPLOT_W, SUBPLOT_H));
     let mut plot00 = Emplot::<_,NUM_BUF_SAMPLES>::new(
       bbox00,
-      NUM_DRAW_SAMPLES, // nsamples to display
-      Rgb565::GREEN,
+      NUM_DRAW_SAMPLES,  
+      Rgb565::new(16, 8, 16),
       1, // stroke size
     );
 
     let bbox10 = Rectangle::new(Point::new(SUBPLOT_W as i32, 0), Size::new(SUBPLOT_W, SUBPLOT_H));
     let mut plot10 = Emplot::<_,NUM_BUF_SAMPLES>::new(
       bbox10,
-      NUM_DRAW_SAMPLES, // nsamples to display
-      Rgb565::YELLOW,
+      NUM_DRAW_SAMPLES,  
+      Rgb565::new(0,32,16),
       1, // stroke size
     );
 
     let bbox01 = Rectangle::new(Point::new(0, SUBPLOT_H as i32), Size::new(SUBPLOT_W, SUBPLOT_H));
     let mut plot01 = Emplot::<_,NUM_BUF_SAMPLES>::new(
       bbox01,
-      NUM_DRAW_SAMPLES, //samples to display
-      Rgb565::WHITE,
+      NUM_DRAW_SAMPLES, 
+      Rgb565::new(16, 52, 16),
       1, // stroke size
     );
 
     let bbox11 = Rectangle::new(Point::new(SUBPLOT_W as i32, SUBPLOT_H as i32), Size::new(SUBPLOT_W, SUBPLOT_H));
     let mut plot11 = Emplot::<_,NUM_BUF_SAMPLES>::new(
       bbox11,
-      NUM_DRAW_SAMPLES, // nsamples to display
-      Rgb565::RED,
+      NUM_DRAW_SAMPLES, 
+      Rgb565::new(31,21,0),
       1, // stroke size
     );
 
@@ -189,7 +194,6 @@ fn main() -> ! {
 	.build();
     let frame_styled =  display.bounding_box().into_styled(frame_border_stroke);
  
-    let mut sine_count:f32 = 0f32;
     let mut loop_count:i32 = 0;
     let subplot_frame_strokes: [_; 4] = [ cyan_frame_style, magenta_frame_style, magenta_frame_style, cyan_frame_style ];
     let subplot_boxes: [_; 4] = [ bbox00, bbox10, bbox01, bbox11 ];
@@ -207,24 +211,33 @@ fn main() -> ! {
         }
 
         let adc0_raw_val : u16 = adc.read(&mut adc_pin_0).unwrap();
-        plot00.push((adc0_raw_val  << 1) as f32);
+        plot00.push(adc0_raw_val  as f32);
 
-        // read the temperature of the rp2040
-	let traw:u16 = adc.read(&mut temp_sensor).unwrap();
-	let tvolt:f32 = (traw as f32) * (3.30f32/4095f32);
-	//info!("traw: {} tvolt: {}", traw, tvolt);
-        //per datasheet,  Tc = 27 - (ADC_voltage - 0.706)/0.001721
-	let temp_c = 27.0f32 - ((tvolt - 0.706)/0.001721);
-        //info!("temp_c: {}", temp_c);
-        plot10.push(temp_c);
+        let adc1_raw_val : u16 = adc.read(&mut adc_pin_1).unwrap();
+        plot10.push(adc1_raw_val as f32);
 
-        let sinval = f32::sin(sine_count);
-        plot01.push(sinval);
-
+        /*
         let rand_val = raw_rng.next_u32();
         let scaled_rand_val= (rand_val/2) as i32; 
         //info!("rand_val: {} scaled: {}", rand_val, scaled_rand_val);
-        plot11.push(scaled_rand_val as f32);
+        */
+
+        //let adc2_raw_val: u16 = adc.read(&mut adc_pin_2).unwrap();
+        //plot01.push(adc2_raw_val as f32);
+        let gpio28_val = if  gpio28_in.is_high().unwrap() { 1f32 } else { 0f32 };
+        plot01.push(gpio28_val as f32);
+
+        // read the temperature of the rp2040
+        let traw:u16 = adc.read(&mut temp_sensor).unwrap();
+        /*
+        let tvolt:f32 = (traw as f32) * (3.30f32/4095f32);
+        //info!("traw: {} tvolt: {}", traw, tvolt);
+        //per datasheet,  Tc = 27 - (ADC_voltage - 0.706)/0.001721
+        let temp_c = 27.0f32 - ((tvolt - 0.706)/0.001721);
+        //info!("temp_c: {}", temp_c);
+        */
+        plot11.push(traw as f32); //temp_c);
+
 
         // draw all the sub-plots
         let _ = plot00.draw(&mut display);
@@ -247,8 +260,6 @@ fn main() -> ! {
         )
         .draw(&mut display);
 
-        //sawtooth_count = (sawtooth_count+ 1) % ((scaled_rand_val% 128) + 1);
-        sine_count += 0.20f32;
         loop_count += 1;
 
         led_pin.set_low().unwrap();
