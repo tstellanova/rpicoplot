@@ -7,7 +7,7 @@ use defmt_rtt as _;
 use embedded_hal::digital::v2::OutputPin;
 use panic_probe as _;
 use rp2040_hal as p_hal;
-use fugit::RateExtU32;
+use fugit::{Instant, RateExtU32};
 //use micromath::F32Ext;
 use embedded_hal::digital::v2::InputPin;
 
@@ -86,6 +86,10 @@ fn main() -> ! {
         &mut pac.RESETS,
     );
 
+    let timer = p_hal::Timer::new(pac.TIMER, &mut pac.RESETS);
+    //let mut count_down = timer.count_down();
+
+    //let mut clocko =  Rp2040Monotonic ::new(pac.TIMER);
     let mut led_pin = pins.led.into_push_pull_output();
 
     let _spi0_sck_pin = pins.gpio6.into_mode::<p_hal::gpio::FunctionSpi>();
@@ -129,8 +133,8 @@ fn main() -> ! {
     // analog input read from GPIO26 / A0;
     let mut adc_pin_0 = pins.gpio26.into_floating_input();
     let mut adc_pin_1 = pins.gpio27.into_floating_input();
-    let mut gpio28_in = pins.gpio28.into_floating_input();
-    //let mut adc_pin_2 = pins.gpio28.into_floating_input();
+    //let mut gpio28_in = pins.gpio28.into_floating_input();
+    let mut adc_pin_2 = pins.gpio28.into_floating_input();
     let mut temp_sensor = adc.enable_temp_sensor();
     let mut _raw_rng = p_hal::rosc::RingOscillator::new(pac.ROSC).initialize();
 
@@ -198,13 +202,14 @@ fn main() -> ! {
     let subplot_frame_strokes: [_; 4] = [ cyan_frame_style, magenta_frame_style, magenta_frame_style, cyan_frame_style ];
     let subplot_boxes: [_; 4] = [ bbox00, bbox10, bbox01, bbox11 ];
 	
-
+    let mut start_time;
     loop {
         //info!("on!");
         led_pin.set_high().unwrap();
-
+        start_time = timer.get_counter();
         // draw frames
 	display.clear(false);
+
         let _ = frame_styled.draw(&mut display);
         for i in 0..4 {
           let _ = subplot_boxes[i].into_styled(subplot_frame_strokes[i]).draw(&mut display);
@@ -222,10 +227,10 @@ fn main() -> ! {
         //info!("rand_val: {} scaled: {}", rand_val, scaled_rand_val);
         */
 
-        //let adc2_raw_val: u16 = adc.read(&mut adc_pin_2).unwrap();
-        //plot01.push(adc2_raw_val as f32);
-        let gpio28_val = if  gpio28_in.is_high().unwrap() { 1f32 } else { 0f32 };
-        plot01.push(gpio28_val as f32);
+        let adc2_raw_val: u16 = adc.read(&mut adc_pin_2).unwrap();
+        plot01.push(adc2_raw_val as f32);
+        //let gpio28_val = if  gpio28_in.is_high().unwrap() { 1f32 } else { 0f32 };
+        //plot01.push(gpio28_val as f32);
 
         // read the temperature of the rp2040
         let traw:u16 = adc.read(&mut temp_sensor).unwrap();
@@ -250,7 +255,6 @@ fn main() -> ! {
 	text_buf.push_str("count ");
         text_buf.push_str(loop_count.numtoa_str(10, &mut num_buffer));
 
-
         // labels
         let _ = Text::with_alignment(
             &text_buf,
@@ -265,6 +269,9 @@ fn main() -> ! {
         led_pin.set_low().unwrap();
         display.flush();
         //info!("off!");
+	let end_time =  timer.get_counter();
+        let delta = end_time - start_time;
+        info!("micros: {:?}", delta);
     }
 
 /*
