@@ -77,7 +77,7 @@ fn main() -> ! {
     .ok()
     .unwrap();
 
-    let mut delay = cortex_m::delay::Delay::new(core.SYST, clocks.system_clock.freq().to_Hz());
+    let mut delay_source = cortex_m::delay::Delay::new(core.SYST, clocks.system_clock.freq().to_Hz());
 
     let pins = bsp::Pins::new(
         pac.IO_BANK0,
@@ -98,7 +98,7 @@ fn main() -> ! {
     // rst_pin is used to reset the OLED display during power-on sequence
     let mut rst_pin = pins.gpio10.into_push_pull_output();
     rst_pin.set_high().unwrap();
-    delay.delay_us(200);
+    delay_source.delay_us(200);
     rst_pin.set_low().unwrap();
 
 
@@ -117,7 +117,7 @@ fn main() -> ! {
     let spii = SpiInterface::new(spi0, dc_pin );
     
     // ensure that we keep rst_pin low for at least this long
-    delay.delay_us(100);
+    delay_source.delay_us(100);
     rst_pin.set_high().unwrap(); //re-enable OLED
 
     let mut display_base = ssd1351::display::Display::new(
@@ -136,7 +136,7 @@ fn main() -> ! {
     //let mut gpio28_in = pins.gpio28.into_floating_input();
     let mut adc_pin_2 = pins.gpio28.into_floating_input();
     let mut temp_sensor = adc.enable_temp_sensor();
-    let mut _raw_rng = p_hal::rosc::RingOscillator::new(pac.ROSC).initialize();
+    let mut raw_rng = p_hal::rosc::RingOscillator::new(pac.ROSC).initialize();
 
     let mut num_buffer = [0u8; 20];
     let mut text_buf =  ArrayString::<U40>::new();
@@ -151,8 +151,8 @@ fn main() -> ! {
     const PURPLE_MID:Rgb565 = Rgb565::new(19, 0, 31);
 
 
-    const GOLD_DARK:Rgb565 = Rgb565::new(31, 48, 0); 
-    const GOLD_MID:Rgb565 = Rgb565::new(31, 56, 1); 
+    const GOLD_DARK:Rgb565 = Rgb565::new(29, 43, 2); 
+    const GOLD_MID:Rgb565 = Rgb565::new(31, 48, 1); 
     const GOLD_LIGHT:Rgb565 = Rgb565::new(31, 63, 0); 
 
     const GREEN_DARK:Rgb565 = Rgb565::new(0, 42, 1); 
@@ -164,7 +164,7 @@ fn main() -> ! {
     let mut plot00 = Emplot::<_,NUM_BUF_SAMPLES>::new(
       bbox00,
       NUM_DRAW_SAMPLES,  
-      Rgb565::new(19, 0, 31), //purplish
+      PURPLE_DARK,
       1, // stroke size
     );
 
@@ -172,7 +172,7 @@ fn main() -> ! {
     let mut plot10 = Emplot::<_,NUM_BUF_SAMPLES>::new(
       bbox10,
       NUM_DRAW_SAMPLES,  
-      Rgb565::new(0,32,16), //tealish
+      GOLD_LIGHT,
       1, // stroke size
     );
 
@@ -180,8 +180,7 @@ fn main() -> ! {
     let mut plot01 = Emplot::<_,NUM_BUF_SAMPLES>::new(
       bbox01,
       NUM_DRAW_SAMPLES, 
-      //Rgb565::new(31, 56, 1), //gold
-      Rgb565::new(16, 52, 16),
+      GOLD_DARK,
       1, // stroke size
     );
 
@@ -189,8 +188,7 @@ fn main() -> ! {
     let mut plot11 = Emplot::<_,NUM_BUF_SAMPLES>::new(
       bbox11,
       NUM_DRAW_SAMPLES, 
-      //Rgb565::new(31, 56, 1), //gold
-      Rgb565::new(31,21,0),
+      GREEN_DARK, 
       1, // stroke size
     );
 
@@ -232,9 +230,33 @@ fn main() -> ! {
     .build();
 
     let mut loop_count:i32 = 0;
+    let mut sub_count:u32 = 0;
     let subplot_frame_strokes: [_; 4] = [ cyan_frame_style, magenta_frame_style, magenta_frame_style, cyan_frame_style ];
     let subplot_boxes: [_; 4] = [ bbox00, bbox10, bbox01, bbox11 ];
 	
+        let ellipse_minor:u32 = SUBPLOT_W / 2;
+        let ellipse_major:u32 = SUBPLOT_W ;
+
+        let v_ellipse_t = Ellipse::new(
+                Point::new((SUBPLOT_W - ellipse_minor/2) as i32, 0),
+                Size::new(ellipse_minor, ellipse_major));
+        let v_ellipse_b = Ellipse::new(
+                Point::new((SUBPLOT_W - ellipse_minor/2) as i32, SUBPLOT_H as i32),
+                Size::new(ellipse_minor, ellipse_major));
+
+        let h_ellipse_l = Ellipse::new(
+                Point::new(0, (SUBPLOT_H - ellipse_minor/2) as i32 ),
+                Size::new(ellipse_major, ellipse_minor  ));
+
+        let h_ellipse_r = Ellipse::new(
+                Point::new(SUBPLOT_W as i32, (SUBPLOT_H - ellipse_minor/2) as i32 ),
+                Size::new(ellipse_major, ellipse_minor  ));
+
+        let mid_band = Rectangle::new(
+                Point::new((SUBPLOT_W - ellipse_minor/2) as i32, SUBPLOT_H  as i32),
+                Size::new(ellipse_minor, ellipse_minor/2)
+        );
+
     let mut start_time;
     loop {
         //info!("on!");
@@ -242,30 +264,6 @@ fn main() -> ! {
         start_time = timer.get_counter();
         // draw frames
 	display.clear(false);
-
-
-        let ellipse_minor:u32 = SUBPLOT_W / 2;
-	let ellipse_major:u32 = SUBPLOT_W ;
-  
-        let v_ellipse_t = Ellipse::new(
-		Point::new((SUBPLOT_W - ellipse_minor/2) as i32, 0), 
-		Size::new(ellipse_minor, ellipse_major));
-        let v_ellipse_b = Ellipse::new(
-                Point::new((SUBPLOT_W - ellipse_minor/2) as i32, SUBPLOT_H as i32),
-                Size::new(ellipse_minor, ellipse_major));
-
-        let h_ellipse_l = Ellipse::new(
-		Point::new(0, (SUBPLOT_H - ellipse_minor/2) as i32 ), 
-		Size::new(ellipse_major, ellipse_minor  ));
-
-        let h_ellipse_r = Ellipse::new(
-                Point::new(SUBPLOT_W as i32, (SUBPLOT_H - ellipse_minor/2) as i32 ),
-                Size::new(ellipse_major, ellipse_minor  ));
-
-        let mid_band = Rectangle::new(
-		Point::new((SUBPLOT_W - ellipse_minor/2) as i32, SUBPLOT_H  as i32),
-		Size::new(ellipse_minor, ellipse_minor/2)
-	);
 
 
         let _ = frame_styled.draw(&mut display);
@@ -289,11 +287,9 @@ fn main() -> ! {
         let adc1_raw_val : u16 = adc.read(&mut adc_pin_1).unwrap();
         plot10.push(adc1_raw_val as f32);
 
-        /*
         let rand_val = raw_rng.next_u32();
-        let scaled_rand_val= (rand_val/2) as i32; 
+        //let scaled_rand_val= (rand_val/2) as i32; 
         //info!("rand_val: {} scaled: {}", rand_val, scaled_rand_val);
-        */
 
         let adc2_raw_val: u16 = adc.read(&mut adc_pin_2).unwrap();
         plot01.push(adc2_raw_val as f32);
@@ -319,14 +315,14 @@ fn main() -> ! {
         let _ = plot11.draw(&mut display);
 
         text_buf.clear();
-	text_buf.push_str("count ");
-        text_buf.push_str(loop_count.numtoa_str(10, &mut num_buffer));
+	text_buf.push_str("2023");
+        //text_buf.push_str(loop_count.numtoa_str(10, &mut num_buffer));
 
         // labels
         let _ = Text::with_alignment(
             &text_buf,
             display.bounding_box().top_left + Point::new(4, 8),
-            MonoTextStyle::new(&FONT_6X10, Rgb565::RED),
+            MonoTextStyle::new(&FONT_6X10, GREEN_MID),
             Alignment::Left,
         )
         .draw(&mut display);
@@ -334,15 +330,20 @@ fn main() -> ! {
         loop_count += 1;
 
         led_pin.set_low().unwrap();
-        let sub_count = loop_count % 4 ;
-	let rot = match sub_count {
-		0 => DisplayRotation::Rotate0,
+
+        let val_check = rand_val % 6;
+        if (val_check == 0) {
+          sub_count += 1;
+	  let rot = match (sub_count % 4) {
+	  	0 => DisplayRotation::Rotate0,
 		1 => DisplayRotation::Rotate90,
 		2 => DisplayRotation::Rotate180,
 		3 => DisplayRotation::Rotate270,
 		_=> DisplayRotation::Rotate0,
-        };
-	display.set_rotation(rot);
+          };
+	  display.set_rotation(rot);
+	}
+
         display.flush();
         //info!("off!");
 	let end_time =  timer.get_counter();
