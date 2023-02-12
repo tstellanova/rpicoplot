@@ -152,7 +152,7 @@ fn main() -> ! {
     let mut plot00 = Emplot::<_,NUM_BUF_SAMPLES>::new(
       bbox00,
       NUM_DRAW_SAMPLES,  
-      Rgb565::new(16, 8, 16),
+      Rgb565::new(19, 0, 31), //purplish
       1, // stroke size
     );
 
@@ -160,7 +160,8 @@ fn main() -> ! {
     let mut plot10 = Emplot::<_,NUM_BUF_SAMPLES>::new(
       bbox10,
       NUM_DRAW_SAMPLES,  
-      Rgb565::new(0,32,16),
+      Rgb565::new(0, 42, 1), //emerald
+      //Rgb565::new(0,32,16), //tealish
       1, // stroke size
     );
 
@@ -168,7 +169,8 @@ fn main() -> ! {
     let mut plot01 = Emplot::<_,NUM_BUF_SAMPLES>::new(
       bbox01,
       NUM_DRAW_SAMPLES, 
-      Rgb565::new(16, 52, 16),
+      Rgb565::new(31, 56, 1), //gold
+      //Rgb565::new(16, 52, 16),
       1, // stroke size
     );
 
@@ -176,9 +178,11 @@ fn main() -> ! {
     let mut plot11 = Emplot::<_,NUM_BUF_SAMPLES>::new(
       bbox11,
       NUM_DRAW_SAMPLES, 
-      Rgb565::new(31,21,0),
+      Rgb565::new(31, 56, 1), //gold
+      //Rgb565::new(31,21,0),
       1, // stroke size
     );
+
 
     let cyan_frame_style = PrimitiveStyleBuilder::new()
         .stroke_color(Rgb565::CYAN)
