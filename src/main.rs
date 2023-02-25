@@ -34,7 +34,7 @@ use embedded_graphics::{
 use embedded_graphics::{
     mono_font::{ascii::FONT_5X7, ascii::FONT_6X10, MonoTextStyle},
     prelude::*,
-    primitives::{ Ellipse, Line, PrimitiveStyleBuilder, Rectangle, StrokeAlignment},
+    primitives::{ Sector, Ellipse, Line, PrimitiveStyleBuilder, Rectangle, StrokeAlignment},
     text::{Alignment, Text},
 };
 
@@ -147,8 +147,9 @@ fn main() -> ! {
     const SUBPLOT_W: u32 = 64;
     const SUBPLOT_H: u32 = 64;
     
-    const PURPLE_DARK:Rgb565 = Rgb565::new(19, 0, 31); 
-    const PURPLE_MID:Rgb565 = Rgb565::new(19, 0, 31);
+    const PURPLE_DARK:Rgb565 = Rgb565::new(14, 0, 13);// #6D006A
+    const PURPLE_MID:Rgb565 = Rgb565::new(17, 0, 11);// #880085 
+    const PURPLE_LIGHT:Rgb565 = Rgb565::new(21, 0, 21);// #AA00A6
 
 
     const GOLD_DARK:Rgb565 = Rgb565::new(29, 43, 2); 
@@ -164,16 +165,16 @@ fn main() -> ! {
     let mut plot00 = Emplot::<_,NUM_BUF_SAMPLES>::new(
       bbox00,
       NUM_DRAW_SAMPLES,  
-      PURPLE_DARK,
-      1, // stroke size
+      GREEN_DARK,
+      2, // stroke size
     );
 
     let bbox10 = Rectangle::new(Point::new(SUBPLOT_W as i32, 0), Size::new(SUBPLOT_W, SUBPLOT_H));
     let mut plot10 = Emplot::<_,NUM_BUF_SAMPLES>::new(
       bbox10,
       NUM_DRAW_SAMPLES,  
-      GOLD_LIGHT,
-      1, // stroke size
+      GOLD_DARK,
+      2, // stroke size
     );
 
     let bbox01 = Rectangle::new(Point::new(0, SUBPLOT_H as i32), Size::new(SUBPLOT_W, SUBPLOT_H));
@@ -181,15 +182,15 @@ fn main() -> ! {
       bbox01,
       NUM_DRAW_SAMPLES, 
       GOLD_DARK,
-      1, // stroke size
+      2, // stroke size
     );
 
     let bbox11 = Rectangle::new(Point::new(SUBPLOT_W as i32, SUBPLOT_H as i32), Size::new(SUBPLOT_W, SUBPLOT_H));
     let mut plot11 = Emplot::<_,NUM_BUF_SAMPLES>::new(
       bbox11,
       NUM_DRAW_SAMPLES, 
-      GREEN_DARK, 
-      1, // stroke size
+      PURPLE_DARK, 
+      2, // stroke size
     );
 
 
@@ -211,23 +212,29 @@ fn main() -> ! {
 	.build();
     let frame_styled =  display.bounding_box().into_styled(frame_border_stroke);
  
-    let purple_fill_style = PrimitiveStyleBuilder::new()
-      .stroke_color(PURPLE_DARK)
-      .stroke_width(2)
-      .fill_color(PURPLE_MID)
-      .build();
+    let purple_mid_fill =  PrimitiveStyleBuilder::new().fill_color(PURPLE_MID).build();
+    let purple_light_fill =  PrimitiveStyleBuilder::new().fill_color(PURPLE_LIGHT).build();
 
-    let gold_fill_style = PrimitiveStyleBuilder::new()
-      .stroke_color( GOLD_DARK) 
-      .fill_color( GOLD_MID) 
-      .stroke_width(2)
-      .build();
+    let gold_mid_fill =  PrimitiveStyleBuilder::new().fill_color(GOLD_MID).build();
+    let gold_light_fill =  PrimitiveStyleBuilder::new().fill_color(GOLD_LIGHT).build();
 
-    let green_fill_style = PrimitiveStyleBuilder::new()
-    .stroke_color(GREEN_DARK)
-    .stroke_width(3)
-    .fill_color(GREEN_DARK)
+    let green_mid_fill =  PrimitiveStyleBuilder::new().fill_color(GREEN_MID).build();
+    let green_light_fill =  PrimitiveStyleBuilder::new().fill_color(GREEN_LIGHT).build();
+
+
+    let red_fill_style =  PrimitiveStyleBuilder::new()
+    .fill_color(Rgb565::RED)
     .build();
+    let cyan_fill_style =  PrimitiveStyleBuilder::new()
+    .fill_color(Rgb565::CYAN)
+    .build();
+    let magenta_fill_style =  PrimitiveStyleBuilder::new()
+    .fill_color(Rgb565::MAGENTA)
+    .build();
+    let blue_fill_style =  PrimitiveStyleBuilder::new()
+    .fill_color(Rgb565::BLUE)
+    .build();
+
 
     let mut loop_count:i32 = 0;
     let mut sub_count:u32 = 0;
@@ -251,11 +258,11 @@ fn main() -> ! {
         let h_ellipse_r = Ellipse::new(
                 Point::new(SUBPLOT_W as i32, (SUBPLOT_H - ellipse_minor/2) as i32 ),
                 Size::new(ellipse_major, ellipse_minor  ));
-
-        let mid_band = Rectangle::new(
-                Point::new((SUBPLOT_W - ellipse_minor/2) as i32, SUBPLOT_H  as i32),
-                Size::new(ellipse_minor, ellipse_minor/2)
-        );
+    let sect_pt = Point::new(0,0);
+    let sect_tr = Sector::new(sect_pt, SUBPLOT_W*2, Angle::from_degrees(45.0), Angle::from_degrees(10.0));
+    let sect_tl = Sector::new(sect_pt, SUBPLOT_W*2, Angle::from_degrees(135.0), Angle::from_degrees(10.0));
+    let sect_bl = Sector::new(sect_pt, SUBPLOT_W*2, Angle::from_degrees(225.0), Angle::from_degrees(10.0));
+    let sect_br = Sector::new(sect_pt, SUBPLOT_W*2, Angle::from_degrees(315.0), Angle::from_degrees(10.0));
 
     let mut start_time;
     loop {
@@ -265,15 +272,14 @@ fn main() -> ! {
         // draw frames
 	display.clear(false);
 
-
-        let _ = frame_styled.draw(&mut display);
-        let _ = h_ellipse_l.into_styled(gold_fill_style).draw(&mut display);
-        let _ = v_ellipse_t.into_styled(purple_fill_style).draw(&mut display);
-        let _ = h_ellipse_r.into_styled(gold_fill_style).draw(&mut display);
-        let _ = v_ellipse_b.into_styled(green_fill_style).draw(&mut display);
-
-
-        //let _ = mid_band.into_styled(mid_band_style).draw(&mut display);
+        let _ = h_ellipse_l.into_styled(purple_mid_fill).draw(&mut display);
+        let _ = v_ellipse_t.into_styled(gold_mid_fill).draw(&mut display);
+        let _ = h_ellipse_r.into_styled(purple_light_fill).draw(&mut display);
+        let _ = v_ellipse_b.into_styled(green_mid_fill).draw(&mut display);
+        let _ = sect_tl.into_styled(green_light_fill).draw(&mut display);
+        let _ = sect_tr.into_styled(green_mid_fill).draw(&mut display);
+        let _ = sect_br.into_styled(purple_light_fill).draw(&mut display);
+        let _ = sect_bl.into_styled(purple_mid_fill).draw(&mut display);
 
 /*
         for i in 0..4 {
@@ -288,23 +294,12 @@ fn main() -> ! {
         plot10.push(adc1_raw_val as f32);
 
         let rand_val = raw_rng.next_u32();
-        //let scaled_rand_val= (rand_val/2) as i32; 
-        //info!("rand_val: {} scaled: {}", rand_val, scaled_rand_val);
 
         let adc2_raw_val: u16 = adc.read(&mut adc_pin_2).unwrap();
         plot01.push(adc2_raw_val as f32);
-        //let gpio28_val = if  gpio28_in.is_high().unwrap() { 1f32 } else { 0f32 };
-        //plot01.push(gpio28_val as f32);
 
         // read the temperature of the rp2040
         let traw:u16 = adc.read(&mut temp_sensor).unwrap();
-        /*
-        let tvolt:f32 = (traw as f32) * (3.30f32/4095f32);
-        //info!("traw: {} tvolt: {}", traw, tvolt);
-        //per datasheet,  Tc = 27 - (ADC_voltage - 0.706)/0.001721
-        let temp_c = 27.0f32 - ((tvolt - 0.706)/0.001721);
-        //info!("temp_c: {}", temp_c);
-        */
         plot11.push(traw as f32); //temp_c);
 
 
@@ -313,6 +308,7 @@ fn main() -> ! {
         let _ = plot10.draw(&mut display);
         let _ = plot01.draw(&mut display);
         let _ = plot11.draw(&mut display);
+
 
         text_buf.clear();
 	text_buf.push_str("2023");
@@ -331,18 +327,15 @@ fn main() -> ! {
 
         led_pin.set_low().unwrap();
 
-        let val_check = rand_val % 6;
-        if (val_check == 0) {
-          sub_count += 1;
-	  let rot = match (sub_count % 4) {
-	  	0 => DisplayRotation::Rotate0,
+
+	  let rot = match (rand_val % 4) {
 		1 => DisplayRotation::Rotate90,
 		2 => DisplayRotation::Rotate180,
 		3 => DisplayRotation::Rotate270,
 		_=> DisplayRotation::Rotate0,
           };
 	  display.set_rotation(rot);
-	}
+
 
         display.flush();
         //info!("off!");
