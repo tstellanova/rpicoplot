@@ -23,6 +23,7 @@ ssd1351 = {version="0.4.2", features = ["buffered"] }
 embedded-graphics = "0.7.1"
 emplot = {path = "../emplot"}
 #emplot = {git = "https://github.com/tstellanova/emplot.git" }
+tinyqoi = "0.1.0"
 
 
 defmt = "0.3"

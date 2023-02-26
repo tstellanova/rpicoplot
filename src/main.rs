@@ -18,25 +18,27 @@ use numtoa::NumToA;
 use arraystring::ArrayString;
 use typenum::{U40};
 
+// image file format supported
+use tinyqoi::Qoi;
+
+use embedded_graphics::{
+    prelude::*,
+    mono_font::{ascii::FONT_5X7, ascii::FONT_6X10, MonoTextStyle},
+    image::{Image },
+    pixelcolor::{ Rgb565 },
+    primitives::{ Sector, Ellipse, Line, PrimitiveStyleBuilder, Rectangle, StrokeAlignment},
+    text::{Alignment, Text},
+};
+
+// concrete OLED display 
 use ssd1351::{
     self,
     properties::{DisplaySize, DisplayRotation},
     interface::SpiInterface,
     mode::{GraphicsMode, displaymode::DisplayModeTrait},
-
 };
 
-
-use embedded_graphics::{
-    pixelcolor::Rgb565, prelude::*, 
-};
-
-use embedded_graphics::{
-    mono_font::{ascii::FONT_5X7, ascii::FONT_6X10, MonoTextStyle},
-    prelude::*,
-    primitives::{ Sector, Ellipse, Line, PrimitiveStyleBuilder, Rectangle, StrokeAlignment},
-    text::{Alignment, Text},
-};
+type DisplayColor = Rgb565;
 
 
 // Provide an alias for our BSP so we can switch targets quickly.
@@ -51,8 +53,12 @@ use bsp::hal::{
     watchdog::Watchdog,
 };
 
+// constants that determine the size of the display
+const DISPLAY_SIZE: DisplaySize = DisplaySize::Display128x128; 
+const DISPLAY_DIM: i32 = 128;
 
-const DISPLAY_BUF_SIZE: usize = 32768;
+const DISPLAY_BUF_SIZE: usize = (DISPLAY_DIM*DISPLAY_DIM*2) as usize; // 16 bits per pixel
+// framebuffer for faster rendering to OLED display; TODO move to different memory section?
 static mut FAST_IMG0: [u8; DISPLAY_BUF_SIZE] = [0u8; DISPLAY_BUF_SIZE];
 
 #[entry]
@@ -121,7 +127,7 @@ fn main() -> ! {
     rst_pin.set_high().unwrap(); //re-enable OLED
 
     let mut display_base = ssd1351::display::Display::new(
-        spii, DisplaySize::Display128x128, DisplayRotation::Rotate0);
+        spii, DISPLAY_SIZE, DisplayRotation::Rotate0);
     let _ = display_base.init();
 
 
@@ -141,31 +147,37 @@ fn main() -> ! {
     let mut num_buffer = [0u8; 20];
     let mut text_buf =  ArrayString::<U40>::new();
 
+    // Parse QOI image.
+    let img_data = include_bytes!("../img/gold_shaded_fleur_de_lis.qoi");
+    //info!("img_data.len(): {} ", img_data.len());
+    let qoi = Qoi::new(img_data).unwrap();
+    let img_size = qoi.size();
+    let inset_point = Point::new((DISPLAY_DIM - img_size.width as i32)/2, (DISPLAY_DIM - img_size.height as i32)/2 );
+    let bg_img = Image::new(&qoi, inset_point);
 
-    const NUM_DRAW_SAMPLES:usize = 64;
-    const NUM_BUF_SAMPLES:usize = 64;
-    const SUBPLOT_W: u32 = 64;
-    const SUBPLOT_H: u32 = 64;
+    const NUM_DRAW_SAMPLES:usize = (DISPLAY_DIM / 2) as usize;
+    const NUM_BUF_SAMPLES:usize =  (DISPLAY_DIM / 2) as usize; 
+    const SUBPLOT_W: u32 = (DISPLAY_DIM / 2) as u32;
+    const SUBPLOT_H: u32 = (DISPLAY_DIM / 2) as u32;
     
-    const PURPLE_DARK:Rgb565 = Rgb565::new(14, 0, 13);// #6D006A
-    const PURPLE_MID:Rgb565 = Rgb565::new(17, 0, 11);// #880085 
-    const PURPLE_LIGHT:Rgb565 = Rgb565::new(21, 0, 21);// #AA00A6
+    const PURPLE_DARK:DisplayColor = DisplayColor::new(14, 0, 13);// #6D006A
+    const PURPLE_MID:DisplayColor = DisplayColor::new(17, 0, 11);// #880085 
+    const PURPLE_LIGHT:DisplayColor = DisplayColor::new(21, 0, 21);// #AA00A6
 
+    const GOLD_DARK:DisplayColor = DisplayColor::new(29, 43, 2); 
+    const GOLD_MID:DisplayColor = DisplayColor::new(31, 48, 1); 
+    const GOLD_LIGHT:DisplayColor = DisplayColor::new(31, 63, 0); 
 
-    const GOLD_DARK:Rgb565 = Rgb565::new(29, 43, 2); 
-    const GOLD_MID:Rgb565 = Rgb565::new(31, 48, 1); 
-    const GOLD_LIGHT:Rgb565 = Rgb565::new(31, 63, 0); 
-
-    const GREEN_DARK:Rgb565 = Rgb565::new(0, 42, 1); 
-    const GREEN_MID:Rgb565 = Rgb565::GREEN;
-    const GREEN_LIGHT:Rgb565 = Rgb565::new(0, 63, 0);  
+    const GREEN_DARK:DisplayColor = DisplayColor::new(0, 42, 1); 
+    const GREEN_MID:DisplayColor = DisplayColor::GREEN;
+    const GREEN_LIGHT:DisplayColor = DisplayColor::new(0, 63, 0);  
 
     //create plots
     let bbox00 = Rectangle::new(Point::new(0, 0), Size::new(SUBPLOT_W, SUBPLOT_H));
     let mut plot00 = Emplot::<_,NUM_BUF_SAMPLES>::new(
       bbox00,
       NUM_DRAW_SAMPLES,  
-      GREEN_DARK,
+      GOLD_DARK,
       2, // stroke size
     );
 
@@ -173,7 +185,7 @@ fn main() -> ! {
     let mut plot10 = Emplot::<_,NUM_BUF_SAMPLES>::new(
       bbox10,
       NUM_DRAW_SAMPLES,  
-      GOLD_DARK,
+      GREEN_DARK,
       2, // stroke size
     );
 
@@ -181,7 +193,7 @@ fn main() -> ! {
     let mut plot01 = Emplot::<_,NUM_BUF_SAMPLES>::new(
       bbox01,
       NUM_DRAW_SAMPLES, 
-      GOLD_DARK,
+      PURPLE_DARK,
       2, // stroke size
     );
 
@@ -189,24 +201,24 @@ fn main() -> ! {
     let mut plot11 = Emplot::<_,NUM_BUF_SAMPLES>::new(
       bbox11,
       NUM_DRAW_SAMPLES, 
-      PURPLE_DARK, 
+      GOLD_DARK, 
       2, // stroke size
     );
 
 
     let cyan_frame_style = PrimitiveStyleBuilder::new()
-        .stroke_color(Rgb565::CYAN)
+        .stroke_color(DisplayColor::CYAN)
         .stroke_width(1)
         .stroke_alignment(StrokeAlignment::Inside)
         .build();
     let magenta_frame_style =  PrimitiveStyleBuilder::new()
-        .stroke_color(Rgb565::MAGENTA)
+        .stroke_color(DisplayColor::MAGENTA)
         .stroke_width(1)
         .stroke_alignment(StrokeAlignment::Inside)
         .build();
 
     let frame_border_stroke = PrimitiveStyleBuilder::new()
-	.stroke_color(Rgb565::BLUE)
+	.stroke_color(DisplayColor::BLUE)
 	.stroke_width(1)
 	.stroke_alignment(StrokeAlignment::Inside)
 	.build();
@@ -223,21 +235,20 @@ fn main() -> ! {
 
 
     let red_fill_style =  PrimitiveStyleBuilder::new()
-    .fill_color(Rgb565::RED)
+    .fill_color(DisplayColor::RED)
     .build();
     let cyan_fill_style =  PrimitiveStyleBuilder::new()
-    .fill_color(Rgb565::CYAN)
+    .fill_color(DisplayColor::CYAN)
     .build();
     let magenta_fill_style =  PrimitiveStyleBuilder::new()
-    .fill_color(Rgb565::MAGENTA)
+    .fill_color(DisplayColor::MAGENTA)
     .build();
     let blue_fill_style =  PrimitiveStyleBuilder::new()
-    .fill_color(Rgb565::BLUE)
+    .fill_color(DisplayColor::BLUE)
     .build();
 
 
     let mut loop_count:i32 = 0;
-    let mut sub_count:u32 = 0;
     let subplot_frame_strokes: [_; 4] = [ cyan_frame_style, magenta_frame_style, magenta_frame_style, cyan_frame_style ];
     let subplot_boxes: [_; 4] = [ bbox00, bbox10, bbox01, bbox11 ];
 	
@@ -272,15 +283,20 @@ fn main() -> ! {
         // draw frames
 	display.clear(false);
 
-        let _ = h_ellipse_l.into_styled(purple_mid_fill).draw(&mut display);
-        let _ = v_ellipse_t.into_styled(gold_mid_fill).draw(&mut display);
-        let _ = h_ellipse_r.into_styled(purple_light_fill).draw(&mut display);
-        let _ = v_ellipse_b.into_styled(green_mid_fill).draw(&mut display);
+        // Draw image to display.
+        bg_img.draw(&mut display.color_converted()).unwrap(); 
+
+        // draw some colored ellipses
+        //let _ = h_ellipse_l.into_styled(purple_mid_fill).draw(&mut display);
+        //let _ = v_ellipse_t.into_styled(gold_mid_fill).draw(&mut display);
+        //let _ = h_ellipse_r.into_styled(purple_light_fill).draw(&mut display);
+        //let _ = v_ellipse_b.into_styled(green_mid_fill).draw(&mut display);
+
+        // draw some rays from center
         let _ = sect_tl.into_styled(green_light_fill).draw(&mut display);
         let _ = sect_tr.into_styled(green_mid_fill).draw(&mut display);
         let _ = sect_br.into_styled(purple_light_fill).draw(&mut display);
         let _ = sect_bl.into_styled(purple_mid_fill).draw(&mut display);
-
 /*
         for i in 0..4 {
           let _ = subplot_boxes[i].into_styled(subplot_frame_strokes[i]).draw(&mut display);
@@ -309,10 +325,10 @@ fn main() -> ! {
         let _ = plot01.draw(&mut display);
         let _ = plot11.draw(&mut display);
 
-
+        // draw a text label
         text_buf.clear();
 	text_buf.push_str("2023");
-        //text_buf.push_str(loop_count.numtoa_str(10, &mut num_buffer));
+        text_buf.push_str(loop_count.numtoa_str(10, &mut num_buffer));
 
         // labels
         let _ = Text::with_alignment(
@@ -327,16 +343,15 @@ fn main() -> ! {
 
         led_pin.set_low().unwrap();
 
-
-	  let rot = match (rand_val % 4) {
+/*
+	let rot = match (rand_val % 4) {
 		1 => DisplayRotation::Rotate90,
 		2 => DisplayRotation::Rotate180,
 		3 => DisplayRotation::Rotate270,
 		_=> DisplayRotation::Rotate0,
-          };
-	  display.set_rotation(rot);
-
-
+        };
+	display.set_rotation(rot);
+i*/
         display.flush();
         //info!("off!");
 	let end_time =  timer.get_counter();
