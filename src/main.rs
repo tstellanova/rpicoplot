@@ -35,7 +35,6 @@ use embedded_graphics::{
 
 //concreate display
 use  display_interface_spi::{SPIInterface, SPIInterfaceNoCS};
-use mipidsi::*;
 
 // concrete OLED display 
 /*
@@ -47,7 +46,12 @@ use ssd1351::{
 };
 */
 
-type DisplayColor = Rgb565;
+use mipidsi:: {
+ColorOrder,
+ColorInversion,
+};
+
+type DisplayColor = Rgb565; //ST7789::ColorFormat; //Rgb565
 
 
 // Provide an alias for our BSP so we can switch targets quickly.
@@ -66,15 +70,15 @@ use bsp::hal::{
 //const DISPLAY_SIZE: DisplaySize = DisplaySize::Display128x128; 
 //const DISPLAY_SIZE: DisplaySize = DisplaySize::Display320x240;
 
-const DISPLAY_DIM: i32 = 128;
+//const DISPLAY_DIM: i32 = 240;
 const DISPLAY_WIDTH: i32 = 320;
-const DISPLAY_HEIGHT: i32 = 24;
+const DISPLAY_HEIGHT: i32 = 240;
 
 //const DISPLAY_BUF_SIZE: usize = (DISPLAY_DIM*DISPLAY_DIM*2) as usize; // 16 bits per pixel
-const DISPLAY_BUF_SIZE: usize = (DISPLAY_WIDTH*DISPLAY_HEIGHT*2) as usize; // 16 bits per pixel
+//const DISPLAY_BUF_SIZE: usize = (DISPLAY_WIDTH*DISPLAY_HEIGHT*2) as usize; // 16 bits per pixel
 
 // framebuffer for faster rendering to OLED display; TODO move to different memory section?
-static mut FAST_IMG0: [u8; DISPLAY_BUF_SIZE] = [0u8; DISPLAY_BUF_SIZE];
+//static mut FAST_IMG0: [u8; DISPLAY_BUF_SIZE] = [0u8; DISPLAY_BUF_SIZE];
 
 #[entry]
 fn main() -> ! {
@@ -145,14 +149,20 @@ fn main() -> ! {
     delay_source.delay_us(100);
     rst_pin.set_high().unwrap(); //re-enable OLED
 
+    let mopts = mipidsi::ModelOptions::with_sizes((320,240),(240,320));
     //let mut display_base = ssd1351::display::Display::new(
     //    spii, DISPLAY_SIZE, DisplayRotation::Rotate0);
     let mut display =  mipidsi::Builder::st7789(spii)
-    .init(&mut delay_source, Some(rst_pin)).unwrap();
+      .with_invert_colors(ColorInversion::Inverted)
+      //.with_color_order(ColorOrder::Bgr)
+      .with_display_size(320, 240)
+      .with_framebuffer_size(320,240)
+      .init(&mut delay_source,  Some(rst_pin)).unwrap();
     //let _ = display_base.init();
 
     //let mut display = Display::with_model(di, Some(rst_display), DisplayModel::new());
-    display.clear(Rgb565::RED).unwrap();
+    let _ = display.clear(Rgb565::RED);
+    let _ = display.set_orientation(mipidsi::options::Orientation::Landscape(false));
  
    /*
     let mut display = unsafe {
@@ -173,15 +183,17 @@ fn main() -> ! {
     let mut text_buf =  ArrayString::<U40>::new();
 
     // Parse QOI image.
-    let img_data = include_bytes!("../img/gold_shaded_fleur_de_lis.qoi");
+    let img_data = include_bytes!("../img/240_dim_fleur.qoi"); //gold_shaded_fleur_de_lis.qoi");
     //info!("img_data.len(): {} ", img_data.len());
     let qoi = Qoi::new(img_data).unwrap();
     let img_size = qoi.size();
-    let inset_point = Point::new((DISPLAY_DIM - img_size.width as i32)/2, (DISPLAY_DIM - img_size.height as i32)/2 );
-    let bg_img = Image::new(&qoi, inset_point);
+    let img_inset_point = Point::new(
+      (DISPLAY_WIDTH- img_size.width as i32)/2,
+      (DISPLAY_HEIGHT - img_size.height as i32)/2 );
+    let bg_img = Image::new(&qoi, img_inset_point);
 
-    const NUM_DRAW_SAMPLES:usize = (DISPLAY_BUF_SIZE/ 2) as usize;
-    const NUM_BUF_SAMPLES:usize =  (DISPLAY_BUF_SIZE/ 2) as usize; 
+    //const NUM_DRAW_SAMPLES:usize = (DISPLAY_BUF_SIZE/ 2) as usize;
+    //const NUM_BUF_SAMPLES:usize =  (DISPLAY_BUF_SIZE/ 2) as usize; 
     const SUBPLOT_W: u32 = (DISPLAY_WIDTH / 2) as u32;
     const SUBPLOT_H: u32 = (DISPLAY_HEIGHT / 2) as u32;
     
@@ -281,23 +293,23 @@ i   */
     let subplot_frame_strokes: [_; 4] = [ cyan_frame_style, magenta_frame_style, magenta_frame_style, cyan_frame_style ];
     let subplot_boxes: [_; 4] = [ bbox00, bbox10, bbox01, bbox11 ];
 	
-        let ellipse_minor:u32 = SUBPLOT_W / 2;
-        let ellipse_major:u32 = SUBPLOT_W ;
+    let ellipse_minor:u32 = SUBPLOT_W / 2;
+    let ellipse_major:u32 = SUBPLOT_W ;
 
-        let v_ellipse_t = Ellipse::new(
-                Point::new((SUBPLOT_W - ellipse_minor/2) as i32, 0),
-                Size::new(ellipse_minor, ellipse_major));
-        let v_ellipse_b = Ellipse::new(
-                Point::new((SUBPLOT_W - ellipse_minor/2) as i32, SUBPLOT_H as i32),
-                Size::new(ellipse_minor, ellipse_major));
+    let v_ellipse_t = Ellipse::new(
+      Point::new((SUBPLOT_W - ellipse_minor/2) as i32, 0),
+      Size::new(ellipse_minor, ellipse_major));
+     let v_ellipse_b = Ellipse::new(
+       Point::new((SUBPLOT_W - ellipse_minor/2) as i32, SUBPLOT_H as i32),
+       Size::new(ellipse_minor, ellipse_major));
 
-        let h_ellipse_l = Ellipse::new(
-                Point::new(0, (SUBPLOT_H - ellipse_minor/2) as i32 ),
-                Size::new(ellipse_major, ellipse_minor  ));
+    let h_ellipse_l = Ellipse::new(
+      Point::new(0, (SUBPLOT_H - ellipse_minor/2) as i32 ),
+      Size::new(ellipse_major, ellipse_minor  ));
 
-        let h_ellipse_r = Ellipse::new(
-                Point::new(SUBPLOT_W as i32, (SUBPLOT_H - ellipse_minor/2) as i32 ),
-                Size::new(ellipse_major, ellipse_minor  ));
+    let h_ellipse_r = Ellipse::new(
+      Point::new(SUBPLOT_W as i32, (SUBPLOT_H - ellipse_minor/2) as i32 ),
+      Size::new(ellipse_major, ellipse_minor  ));
     let sect_pt = Point::new(0,0);
     let sect_tr = Sector::new(sect_pt, SUBPLOT_W*2, Angle::from_degrees(45.0), Angle::from_degrees(10.0));
     let sect_tl = Sector::new(sect_pt, SUBPLOT_W*2, Angle::from_degrees(135.0), Angle::from_degrees(10.0));
@@ -310,10 +322,15 @@ i   */
         led_pin.set_high().unwrap();
         start_time = timer.get_counter();
         // draw frames
+        let _ = display.clear(Rgb565::RED);
 
         // Draw image to display.
-        //bg_img.draw(&mut display.color_converted()).unwrap(); 
+        let _ = bg_img.draw(&mut display.color_converted()).unwrap(); 
         //let _ = bg_img.draw(&mut display);
+
+        for i in 0..4 {
+          let _ = subplot_boxes[i].into_styled(subplot_frame_strokes[i]).draw(&mut display);
+        }
 
         // draw some colored ellipses
         //let _ = h_ellipse_l.into_styled(purple_mid_fill).draw(&mut display);
@@ -322,15 +339,15 @@ i   */
         //let _ = v_ellipse_b.into_styled(green_mid_fill).draw(&mut display);
 
         // draw some rays from center
-        let _ = sect_tl.into_styled(green_light_fill).draw(&mut display);
-        let _ = sect_tr.into_styled(green_mid_fill).draw(&mut display);
-        let _ = sect_br.into_styled(purple_light_fill).draw(&mut display);
-        let _ = sect_bl.into_styled(purple_mid_fill).draw(&mut display);
-/*
+        //let _ = sect_tl.into_styled(green_light_fill).draw(&mut display);
+        //let _ = sect_tr.into_styled(green_mid_fill).draw(&mut display);
+        //let _ = sect_br.into_styled(purple_light_fill).draw(&mut display);
+        //let _ = sect_bl.into_styled(purple_mid_fill).draw(&mut display);
+        /*
         for i in 0..4 {
           let _ = subplot_boxes[i].into_styled(subplot_frame_strokes[i]).draw(&mut display);
         }
-*/
+        */
 
         let adc0_raw_val : u16 = adc.read(&mut adc_pin_0).unwrap();
         //plot00.push(adc0_raw_val  as f32);
