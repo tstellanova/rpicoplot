@@ -13,7 +13,7 @@ use embedded_hal::digital::v2::InputPin;
 
 use embedded_hal::adc::OneShot;
 use rand_core::RngCore;
-use emplot::*;
+//use emplot::*;
 use numtoa::NumToA;
 use arraystring::ArrayString;
 use typenum::{U40};
@@ -21,8 +21,11 @@ use typenum::{U40};
 // image file format supported
 use tinyqoi::Qoi;
 
+//use embedded_graphics_core::draw_target::DrawTarget;
+
 use embedded_graphics::{
     prelude::*,
+    draw_target::DrawTarget,
     mono_font::{ascii::FONT_5X7, ascii::FONT_6X10, MonoTextStyle},
     image::{Image },
     pixelcolor::{ Rgb565 },
@@ -30,13 +33,19 @@ use embedded_graphics::{
     text::{Alignment, Text},
 };
 
+//concreate display
+use  display_interface_spi::{SPIInterface, SPIInterfaceNoCS};
+use mipidsi::*;
+
 // concrete OLED display 
+/*
 use ssd1351::{
     self,
     properties::{DisplaySize, DisplayRotation},
     interface::SpiInterface,
     mode::{GraphicsMode, displaymode::DisplayModeTrait},
 };
+*/
 
 type DisplayColor = Rgb565;
 
@@ -54,10 +63,16 @@ use bsp::hal::{
 };
 
 // constants that determine the size of the display
-const DISPLAY_SIZE: DisplaySize = DisplaySize::Display128x128; 
-const DISPLAY_DIM: i32 = 128;
+//const DISPLAY_SIZE: DisplaySize = DisplaySize::Display128x128; 
+//const DISPLAY_SIZE: DisplaySize = DisplaySize::Display320x240;
 
-const DISPLAY_BUF_SIZE: usize = (DISPLAY_DIM*DISPLAY_DIM*2) as usize; // 16 bits per pixel
+const DISPLAY_DIM: i32 = 128;
+const DISPLAY_WIDTH: i32 = 320;
+const DISPLAY_HEIGHT: i32 = 24;
+
+//const DISPLAY_BUF_SIZE: usize = (DISPLAY_DIM*DISPLAY_DIM*2) as usize; // 16 bits per pixel
+const DISPLAY_BUF_SIZE: usize = (DISPLAY_WIDTH*DISPLAY_HEIGHT*2) as usize; // 16 bits per pixel
+
 // framebuffer for faster rendering to OLED display; TODO move to different memory section?
 static mut FAST_IMG0: [u8; DISPLAY_BUF_SIZE] = [0u8; DISPLAY_BUF_SIZE];
 
@@ -107,9 +122,11 @@ fn main() -> ! {
     delay_source.delay_us(200);
     rst_pin.set_low().unwrap();
 
+    let mut backlight_pin = pins.gpio11.into_push_pull_output();
+    backlight_pin.set_high().unwrap();
 
     let dc_pin  = pins.gpio8.into_push_pull_output();
-    let _cs_pin = pins.gpio9.into_push_pull_output();
+    let cs_pin = pins.gpio9.into_push_pull_output();
     let spi0 = p_hal::Spi::<_, _, 8>::new(pac.SPI0);
 
     // Exchange the uninitialized SPI driver for an initialized one
@@ -117,23 +134,31 @@ fn main() -> ! {
         &mut pac.RESETS,
         clocks.peripheral_clock.freq(),
         16u32.MHz(),
-        &embedded_hal::spi::MODE_0,
+        //&embedded_hal::spi::MODE_0,
+        &embedded_hal::spi::MODE_3,
     );
 
-    let spii = SpiInterface::new(spi0, dc_pin );
-    
+    let spii = SPIInterface::new(spi0, dc_pin, cs_pin );
+    //let di = SPIInterfaceNoCS::new(spii, dc_pin);
+ 
     // ensure that we keep rst_pin low for at least this long
     delay_source.delay_us(100);
     rst_pin.set_high().unwrap(); //re-enable OLED
 
-    let mut display_base = ssd1351::display::Display::new(
-        spii, DISPLAY_SIZE, DisplayRotation::Rotate0);
-    let _ = display_base.init();
+    //let mut display_base = ssd1351::display::Display::new(
+    //    spii, DISPLAY_SIZE, DisplayRotation::Rotate0);
+    let mut display =  mipidsi::Builder::st7789(spii)
+    .init(&mut delay_source, Some(rst_pin)).unwrap();
+    //let _ = display_base.init();
 
-
+    //let mut display = Display::with_model(di, Some(rst_display), DisplayModel::new());
+    display.clear(Rgb565::RED).unwrap();
+ 
+   /*
     let mut display = unsafe {
 	GraphicsMode::new(display_base, &mut FAST_IMG0)
     };
+    */
 
     let mut adc = p_hal::Adc::new(pac.ADC, &mut pac.RESETS);
     // analog input read from GPIO26 / A0;
@@ -155,10 +180,10 @@ fn main() -> ! {
     let inset_point = Point::new((DISPLAY_DIM - img_size.width as i32)/2, (DISPLAY_DIM - img_size.height as i32)/2 );
     let bg_img = Image::new(&qoi, inset_point);
 
-    const NUM_DRAW_SAMPLES:usize = (DISPLAY_DIM / 2) as usize;
-    const NUM_BUF_SAMPLES:usize =  (DISPLAY_DIM / 2) as usize; 
-    const SUBPLOT_W: u32 = (DISPLAY_DIM / 2) as u32;
-    const SUBPLOT_H: u32 = (DISPLAY_DIM / 2) as u32;
+    const NUM_DRAW_SAMPLES:usize = (DISPLAY_BUF_SIZE/ 2) as usize;
+    const NUM_BUF_SAMPLES:usize =  (DISPLAY_BUF_SIZE/ 2) as usize; 
+    const SUBPLOT_W: u32 = (DISPLAY_WIDTH / 2) as u32;
+    const SUBPLOT_H: u32 = (DISPLAY_HEIGHT / 2) as u32;
     
     const PURPLE_DARK:DisplayColor = DisplayColor::new(14, 0, 13);// #6D006A
     const PURPLE_MID:DisplayColor = DisplayColor::new(17, 0, 11);// #880085 
@@ -174,37 +199,41 @@ fn main() -> ! {
 
     //create plots
     let bbox00 = Rectangle::new(Point::new(0, 0), Size::new(SUBPLOT_W, SUBPLOT_H));
+    /*
     let mut plot00 = Emplot::<_,NUM_BUF_SAMPLES>::new(
       bbox00,
       NUM_DRAW_SAMPLES,  
       GOLD_DARK,
       2, // stroke size
     );
-
+    */
     let bbox10 = Rectangle::new(Point::new(SUBPLOT_W as i32, 0), Size::new(SUBPLOT_W, SUBPLOT_H));
+    /*
     let mut plot10 = Emplot::<_,NUM_BUF_SAMPLES>::new(
       bbox10,
       NUM_DRAW_SAMPLES,  
       GREEN_DARK,
       2, // stroke size
     );
-
+    */
     let bbox01 = Rectangle::new(Point::new(0, SUBPLOT_H as i32), Size::new(SUBPLOT_W, SUBPLOT_H));
+    /*
     let mut plot01 = Emplot::<_,NUM_BUF_SAMPLES>::new(
       bbox01,
       NUM_DRAW_SAMPLES, 
       PURPLE_DARK,
       2, // stroke size
     );
-
+i   */
     let bbox11 = Rectangle::new(Point::new(SUBPLOT_W as i32, SUBPLOT_H as i32), Size::new(SUBPLOT_W, SUBPLOT_H));
+    /*
     let mut plot11 = Emplot::<_,NUM_BUF_SAMPLES>::new(
       bbox11,
       NUM_DRAW_SAMPLES, 
       GOLD_DARK, 
       2, // stroke size
     );
-
+    */
 
     let cyan_frame_style = PrimitiveStyleBuilder::new()
         .stroke_color(DisplayColor::CYAN)
@@ -222,7 +251,7 @@ fn main() -> ! {
 	.stroke_width(1)
 	.stroke_alignment(StrokeAlignment::Inside)
 	.build();
-    let frame_styled =  display.bounding_box().into_styled(frame_border_stroke);
+    //let frame_styled =  display.bounding_box().into_styled(frame_border_stroke);
  
     let purple_mid_fill =  PrimitiveStyleBuilder::new().fill_color(PURPLE_MID).build();
     let purple_light_fill =  PrimitiveStyleBuilder::new().fill_color(PURPLE_LIGHT).build();
@@ -281,10 +310,10 @@ fn main() -> ! {
         led_pin.set_high().unwrap();
         start_time = timer.get_counter();
         // draw frames
-	display.clear(false);
 
         // Draw image to display.
-        bg_img.draw(&mut display.color_converted()).unwrap(); 
+        //bg_img.draw(&mut display.color_converted()).unwrap(); 
+        //let _ = bg_img.draw(&mut display);
 
         // draw some colored ellipses
         //let _ = h_ellipse_l.into_styled(purple_mid_fill).draw(&mut display);
@@ -304,26 +333,28 @@ fn main() -> ! {
 */
 
         let adc0_raw_val : u16 = adc.read(&mut adc_pin_0).unwrap();
-        plot00.push(adc0_raw_val  as f32);
+        //plot00.push(adc0_raw_val  as f32);
 
         let adc1_raw_val : u16 = adc.read(&mut adc_pin_1).unwrap();
-        plot10.push(adc1_raw_val as f32);
+        //plot10.push(adc1_raw_val as f32);
 
         let rand_val = raw_rng.next_u32();
 
         let adc2_raw_val: u16 = adc.read(&mut adc_pin_2).unwrap();
-        plot01.push(adc2_raw_val as f32);
+        //plot01.push(adc2_raw_val as f32);
 
         // read the temperature of the rp2040
         let traw:u16 = adc.read(&mut temp_sensor).unwrap();
-        plot11.push(traw as f32); //temp_c);
+        //plot11.push(traw as f32); //temp_c);
 
 
         // draw all the sub-plots
+        /*
         let _ = plot00.draw(&mut display);
         let _ = plot10.draw(&mut display);
         let _ = plot01.draw(&mut display);
         let _ = plot11.draw(&mut display);
+        */
 
         // draw a text label
         text_buf.clear();
@@ -352,7 +383,7 @@ fn main() -> ! {
         };
 	display.set_rotation(rot);
 i*/
-        display.flush();
+        //display.flush();
         //info!("off!");
 	let end_time =  timer.get_counter();
         let delta = end_time - start_time;
