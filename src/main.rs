@@ -8,8 +8,6 @@ use embedded_hal::digital::v2::OutputPin;
 use panic_probe as _;
 use rp2040_hal as p_hal;
 use fugit::{Instant, RateExtU32};
-//use micromath::F32Ext;
-use embedded_hal::digital::v2::InputPin;
 
 use embedded_hal::adc::OneShot;
 use rand_core::RngCore;
@@ -33,25 +31,14 @@ use embedded_graphics::{
     text::{Alignment, Text},
 };
 
-//concreate display
-use  display_interface_spi::{SPIInterface, SPIInterfaceNoCS};
-
-// concrete OLED display 
-/*
-use ssd1351::{
-    self,
-    properties::{DisplaySize, DisplayRotation},
-    interface::SpiInterface,
-    mode::{GraphicsMode, displaymode::DisplayModeTrait},
-};
-*/
+use  display_interface_spi::{SPIInterface };
 
 use mipidsi:: {
-ColorOrder,
-ColorInversion,
+  ColorOrder,
+  ColorInversion,
 };
 
-type DisplayColor = Rgb565; //ST7789::ColorFormat; //Rgb565
+type DisplayColor = Rgb565; //ST7789::ColorFormat; 
 
 
 // Provide an alias for our BSP so we can switch targets quickly.
@@ -70,12 +57,9 @@ use bsp::hal::{
 //const DISPLAY_SIZE: DisplaySize = DisplaySize::Display128x128; 
 //const DISPLAY_SIZE: DisplaySize = DisplaySize::Display320x240;
 
-//const DISPLAY_DIM: i32 = 240;
 const DISPLAY_WIDTH: i32 = 320;
 const DISPLAY_HEIGHT: i32 = 240;
 
-//const DISPLAY_BUF_SIZE: usize = (DISPLAY_DIM*DISPLAY_DIM*2) as usize; // 16 bits per pixel
-//const DISPLAY_BUF_SIZE: usize = (DISPLAY_WIDTH*DISPLAY_HEIGHT*2) as usize; // 16 bits per pixel
 
 // framebuffer for faster rendering to OLED display; TODO move to different memory section?
 //static mut FAST_IMG0: [u8; DISPLAY_BUF_SIZE] = [0u8; DISPLAY_BUF_SIZE];
@@ -143,26 +127,24 @@ fn main() -> ! {
     );
 
     let spii = SPIInterface::new(spi0, dc_pin, cs_pin );
-    //let di = SPIInterfaceNoCS::new(spii, dc_pin);
  
     // ensure that we keep rst_pin low for at least this long
     delay_source.delay_us(100);
     rst_pin.set_high().unwrap(); //re-enable OLED
 
-    let mopts = mipidsi::ModelOptions::with_sizes((320,240),(240,320));
     //let mut display_base = ssd1351::display::Display::new(
     //    spii, DISPLAY_SIZE, DisplayRotation::Rotate0);
     let mut display =  mipidsi::Builder::st7789(spii)
       .with_invert_colors(ColorInversion::Inverted)
       //.with_color_order(ColorOrder::Bgr)
+      .with_orientation(mipidsi::options::Orientation::Landscape(false))
       .with_display_size(320, 240)
-      .with_framebuffer_size(320,240)
+      .with_framebuffer_size(240,320)
       .init(&mut delay_source,  Some(rst_pin)).unwrap();
     //let _ = display_base.init();
 
     //let mut display = Display::with_model(di, Some(rst_display), DisplayModel::new());
     let _ = display.clear(Rgb565::RED);
-    let _ = display.set_orientation(mipidsi::options::Orientation::Landscape(false));
  
    /*
     let mut display = unsafe {
@@ -322,11 +304,10 @@ i   */
         led_pin.set_high().unwrap();
         start_time = timer.get_counter();
         // draw frames
-        let _ = display.clear(Rgb565::RED);
+        let _ = display.clear(Rgb565::BLACK);
 
         // Draw image to display.
         let _ = bg_img.draw(&mut display.color_converted()).unwrap(); 
-        //let _ = bg_img.draw(&mut display);
 
         for i in 0..4 {
           let _ = subplot_boxes[i].into_styled(subplot_frame_strokes[i]).draw(&mut display);
