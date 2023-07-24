@@ -316,21 +316,20 @@ i   */
         let _ = bg_img.draw(&mut display.color_converted()).unwrap(); 
 
         // draw some colored ellipses
-        let _ = display.draw_iter(h_ellipse_l.into_styled(red_fill_style).pixels());
-        let _ = display.draw_iter(v_ellipse_t.into_styled(green_mid_fill).pixels());
-        let _ = display.draw_iter(h_ellipse_r.into_styled(purple_light_fill).pixels());
-        let _ = display.draw_iter(v_ellipse_b.into_styled(gold_mid_fill).pixels());
+        let _ = h_ellipse_l.into_styled(red_fill_style).draw(&mut display);
+        let _ = v_ellipse_t.into_styled(green_mid_fill).draw(&mut display);
+        let _ = h_ellipse_r.into_styled(purple_light_fill).draw(&mut display);
+        let _ = v_ellipse_b.into_styled(gold_mid_fill).draw(&mut display);
 
         // draw some rays from center
-        let _ = display.draw_iter(sect_tl.into_styled(green_light_fill).pixels()); //.draw(&mut display);
-        let _ = display.draw_iter(sect_tr.into_styled(green_mid_fill).pixels()); //draw(&mut display);
-        let _ = display.draw_iter(sect_br.into_styled(purple_light_fill).pixels()); //draw(&mut display);
-        let _ = display.draw_iter(sect_bl.into_styled(purple_mid_fill).pixels()); //draw(&mut display);
+        let _ = sect_tl.into_styled(green_light_fill).draw(&mut display);
+        let _ = sect_tr.into_styled(green_mid_fill).draw(&mut display);
+        let _ = sect_br.into_styled(purple_light_fill).draw(&mut display);
+        let _ = sect_bl.into_styled(purple_mid_fill).draw(&mut display);
 
 
         for i in 0..4 {
-          //let _ = subplot_boxes[i].into_styled(subplot_frame_strokes[i]).draw(&mut display);
-          let _ = display.draw_iter(subplot_boxes[i].into_styled(subplot_frame_strokes[i]).pixels());
+          let _ = subplot_boxes[i].into_styled(subplot_frame_strokes[i]).draw(&mut display);
         }
 
         let adc0_raw_val : u16 = adc.read(&mut adc_pin_0).unwrap();
@@ -359,8 +358,8 @@ i   */
 
         // draw a text label
         text_buf.clear();
-	text_buf.push_str("2023");
-        text_buf.push_str(loop_count.numtoa_str(10, &mut num_buffer));
+	text_buf.push_str("20230723");
+        //let strango = loop_count.numtoa_str(10, &mut num_buffer);
 
         // labels
         let _ = Text::with_alignment(
