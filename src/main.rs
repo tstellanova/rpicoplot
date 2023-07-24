@@ -7,7 +7,7 @@ use defmt_rtt as _;
 use embedded_hal::digital::v2::OutputPin;
 use panic_probe as _;
 use rp2040_hal as p_hal;
-use fugit::{Instant, RateExtU32};
+use fugit::{ RateExtU32};
 
 use embedded_hal::adc::OneShot;
 use rand_core::RngCore;
@@ -24,17 +24,18 @@ use tinyqoi::Qoi;
 use embedded_graphics::{
     prelude::*,
     draw_target::DrawTarget,
-    mono_font::{ascii::FONT_5X7, ascii::FONT_6X10, MonoTextStyle},
+    mono_font::{
+	//ascii::FONT_5X7, 
+	ascii::FONT_6X10, MonoTextStyle},
     image::{Image },
     pixelcolor::{ Rgb565 },
-    primitives::{ Sector, Ellipse, Line, PrimitiveStyleBuilder, Rectangle, StrokeAlignment},
+    primitives::{ Sector, Ellipse, PrimitiveStyleBuilder, Rectangle, StrokeAlignment},
     text::{Alignment, Text},
 };
 
 use  display_interface_spi::{SPIInterface };
 
-use mipidsi:: {
-  ColorOrder,
+use mipidsi::{
   ColorInversion,
 };
 
@@ -53,9 +54,6 @@ use bsp::hal::{
     watchdog::Watchdog,
 };
 
-// constants that determine the size of the display
-//const DISPLAY_SIZE: DisplaySize = DisplaySize::Display128x128; 
-//const DISPLAY_SIZE: DisplaySize = DisplaySize::Display320x240;
 
 const DISPLAY_WIDTH: i32 = 320;
 const DISPLAY_HEIGHT: i32 = 240;
@@ -137,14 +135,14 @@ fn main() -> ! {
     let mut display =  mipidsi::Builder::st7789(spii)
       .with_invert_colors(ColorInversion::Inverted)
       //.with_color_order(ColorOrder::Bgr)
-      .with_orientation(mipidsi::options::Orientation::Landscape(false))
-      .with_display_size(320, 240)
-      .with_framebuffer_size(240,320)
+      .with_orientation(mipidsi::options::Orientation::LandscapeInverted(true))
+      .with_display_size(DISPLAY_WIDTH as u16, DISPLAY_HEIGHT as u16)
+      .with_framebuffer_size(DISPLAY_WIDTH as u16, DISPLAY_HEIGHT as u16)
       .init(&mut delay_source,  Some(rst_pin)).unwrap();
     //let _ = display_base.init();
 
     //let mut display = Display::with_model(di, Some(rst_display), DisplayModel::new());
-    let _ = display.clear(Rgb565::RED);
+    let _ = display.clear(Rgb565::BLACK);
  
    /*
     let mut display = unsafe {
@@ -191,6 +189,8 @@ fn main() -> ! {
     const GREEN_MID:DisplayColor = DisplayColor::GREEN;
     const GREEN_LIGHT:DisplayColor = DisplayColor::new(0, 63, 0);  
 
+
+    let ctr_point = Point::new(SUBPLOT_W as i32, SUBPLOT_H as i32);
     //create plots
     let bbox00 = Rectangle::new(Point::new(0, 0), Size::new(SUBPLOT_W, SUBPLOT_H));
     /*
@@ -274,29 +274,33 @@ i   */
     let mut loop_count:i32 = 0;
     let subplot_frame_strokes: [_; 4] = [ cyan_frame_style, magenta_frame_style, magenta_frame_style, cyan_frame_style ];
     let subplot_boxes: [_; 4] = [ bbox00, bbox10, bbox01, bbox11 ];
+
+    let sect_radius: i32 = SUBPLOT_H as i32;
+    // this is the top-left point of the bounding box around the circle from which sectors are cut
+    let sect_pt = Point::new(ctr_point.x - sect_radius, ctr_point.y - sect_radius);
+    let sect_dia = (sect_radius * 2) as u32;
+    let sect_tr = Sector::new(sect_pt, sect_dia, Angle::from_degrees(45.0), Angle::from_degrees(10.0));
+    let sect_tl = Sector::new(sect_pt, sect_dia, Angle::from_degrees(135.0), Angle::from_degrees(10.0));
+    let sect_bl = Sector::new(sect_pt, sect_dia, Angle::from_degrees(225.0), Angle::from_degrees(10.0));
+    let sect_br = Sector::new(sect_pt, sect_dia, Angle::from_degrees(315.0), Angle::from_degrees(10.0));
+
 	
-    let ellipse_minor:u32 = SUBPLOT_W / 2;
-    let ellipse_major:u32 = SUBPLOT_W ;
-
+    let ellipse_minor:u32 = SUBPLOT_W / 6;
+    let ellipse_major:u32 = SUBPLOT_H ;
+    let ellipse_h_ctr:i32 = (SUBPLOT_W - ellipse_minor/2) as i32;
+    let ellipse_v_ctr:i32 = (SUBPLOT_H - ellipse_minor/2) as i32;
+    let v_ell_size = Size::new(ellipse_minor, ellipse_major);
     let v_ellipse_t = Ellipse::new(
-      Point::new((SUBPLOT_W - ellipse_minor/2) as i32, 0),
-      Size::new(ellipse_minor, ellipse_major));
-     let v_ellipse_b = Ellipse::new(
-       Point::new((SUBPLOT_W - ellipse_minor/2) as i32, SUBPLOT_H as i32),
-       Size::new(ellipse_minor, ellipse_major));
+      Point::new(ellipse_h_ctr, 0), v_ell_size);
+    let v_ellipse_b = Ellipse::new(
+       Point::new(ellipse_h_ctr,  SUBPLOT_H as i32), v_ell_size);
 
+
+    let h_ell_size =  Size::new(ellipse_major, ellipse_minor);
     let h_ellipse_l = Ellipse::new(
-      Point::new(0, (SUBPLOT_H - ellipse_minor/2) as i32 ),
-      Size::new(ellipse_major, ellipse_minor  ));
-
+      Point::new((ellipse_h_ctr - ellipse_major as i32) as i32, ellipse_v_ctr ), h_ell_size);
     let h_ellipse_r = Ellipse::new(
-      Point::new(SUBPLOT_W as i32, (SUBPLOT_H - ellipse_minor/2) as i32 ),
-      Size::new(ellipse_major, ellipse_minor  ));
-    let sect_pt = Point::new(0,0);
-    let sect_tr = Sector::new(sect_pt, SUBPLOT_W*2, Angle::from_degrees(45.0), Angle::from_degrees(10.0));
-    let sect_tl = Sector::new(sect_pt, SUBPLOT_W*2, Angle::from_degrees(135.0), Angle::from_degrees(10.0));
-    let sect_bl = Sector::new(sect_pt, SUBPLOT_W*2, Angle::from_degrees(225.0), Angle::from_degrees(10.0));
-    let sect_br = Sector::new(sect_pt, SUBPLOT_W*2, Angle::from_degrees(315.0), Angle::from_degrees(10.0));
+      Point::new(ellipse_h_ctr, ellipse_v_ctr), h_ell_size);
 
     let mut start_time;
     loop {
@@ -304,31 +308,28 @@ i   */
         led_pin.set_high().unwrap();
         start_time = timer.get_counter();
         // draw frames
-        let _ = display.clear(Rgb565::BLACK);
+        //let _ = display.clear(Rgb565::BLACK);
 
         // Draw image to display.
         let _ = bg_img.draw(&mut display.color_converted()).unwrap(); 
 
-        for i in 0..4 {
-          let _ = subplot_boxes[i].into_styled(subplot_frame_strokes[i]).draw(&mut display);
-        }
-
         // draw some colored ellipses
-        //let _ = h_ellipse_l.into_styled(purple_mid_fill).draw(&mut display);
-        //let _ = v_ellipse_t.into_styled(gold_mid_fill).draw(&mut display);
-        //let _ = h_ellipse_r.into_styled(purple_light_fill).draw(&mut display);
-        //let _ = v_ellipse_b.into_styled(green_mid_fill).draw(&mut display);
+        let _ = display.draw_iter(h_ellipse_l.into_styled(red_fill_style).pixels());
+        let _ = display.draw_iter(v_ellipse_t.into_styled(green_mid_fill).pixels());
+        let _ = display.draw_iter(h_ellipse_r.into_styled(purple_light_fill).pixels());
+        let _ = display.draw_iter(v_ellipse_b.into_styled(gold_mid_fill).pixels());
 
         // draw some rays from center
-        //let _ = sect_tl.into_styled(green_light_fill).draw(&mut display);
-        //let _ = sect_tr.into_styled(green_mid_fill).draw(&mut display);
-        //let _ = sect_br.into_styled(purple_light_fill).draw(&mut display);
-        //let _ = sect_bl.into_styled(purple_mid_fill).draw(&mut display);
-        /*
+        let _ = display.draw_iter(sect_tl.into_styled(green_light_fill).pixels()); //.draw(&mut display);
+        let _ = display.draw_iter(sect_tr.into_styled(green_mid_fill).pixels()); //draw(&mut display);
+        let _ = display.draw_iter(sect_br.into_styled(purple_light_fill).pixels()); //draw(&mut display);
+        let _ = display.draw_iter(sect_bl.into_styled(purple_mid_fill).pixels()); //draw(&mut display);
+
+
         for i in 0..4 {
-          let _ = subplot_boxes[i].into_styled(subplot_frame_strokes[i]).draw(&mut display);
+          //let _ = subplot_boxes[i].into_styled(subplot_frame_strokes[i]).draw(&mut display);
+          let _ = display.draw_iter(subplot_boxes[i].into_styled(subplot_frame_strokes[i]).pixels());
         }
-        */
 
         let adc0_raw_val : u16 = adc.read(&mut adc_pin_0).unwrap();
         //plot00.push(adc0_raw_val  as f32);
@@ -360,13 +361,15 @@ i   */
         text_buf.push_str(loop_count.numtoa_str(10, &mut num_buffer));
 
         // labels
-        let _ = Text::with_alignment(
+        /*
+        let _ = display.draw_iter(Text::with_alignment(
             &text_buf,
             display.bounding_box().top_left + Point::new(4, 8),
             MonoTextStyle::new(&FONT_6X10, GREEN_MID),
             Alignment::Left,
         )
-        .draw(&mut display);
+        .pixels());
+        */
 
         loop_count += 1;
 
