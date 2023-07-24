@@ -26,7 +26,9 @@ use embedded_graphics::{
     draw_target::DrawTarget,
     mono_font::{
 	//ascii::FONT_5X7, 
-	ascii::FONT_6X10, MonoTextStyle},
+	//ascii::FONT_6X10,
+	ascii::FONT_9X15_BOLD,
+	MonoTextStyle},
     image::{Image },
     pixelcolor::{ Rgb565 },
     primitives::{ Sector, Ellipse, PrimitiveStyleBuilder, Rectangle, StrokeAlignment},
@@ -361,15 +363,13 @@ i   */
         text_buf.push_str(loop_count.numtoa_str(10, &mut num_buffer));
 
         // labels
-        /*
-        let _ = display.draw_iter(Text::with_alignment(
+        let _ = Text::with_alignment(
             &text_buf,
             display.bounding_box().top_left + Point::new(4, 8),
-            MonoTextStyle::new(&FONT_6X10, GREEN_MID),
+            MonoTextStyle::new(&FONT_9X15_BOLD, GREEN_MID),
             Alignment::Left,
         )
-        .pixels());
-        */
+        .draw(&mut display);
 
         loop_count += 1;
 
